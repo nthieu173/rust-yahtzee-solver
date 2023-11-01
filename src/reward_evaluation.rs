@@ -8,7 +8,7 @@ const NUM_ROLLS: usize = 3;
 #[derive(Debug, Clone)]
 pub struct IntKeyedArrayMap {
     pub keys: Vec<u32>,
-    pub values: Array3<f64>,
+    pub values: Array3<f32>,
 }
 
 impl IntKeyedArrayMap {
@@ -26,14 +26,14 @@ impl IntKeyedArrayMap {
         }
     }
 
-    pub fn get(&self, key: u32) -> Option<ArrayView2<f64>> {
+    pub fn get(&self, key: u32) -> Option<ArrayView2<f32>> {
         match self.keys.binary_search(&key) {
             Ok(index) => Some(self.values.slice(s![index, .., ..])),
             Err(_) => None,
         }
     }
 
-    pub fn set(&mut self, key: u32, value: &Array2<f64>) {
+    pub fn set(&mut self, key: u32, value: &Array2<f32>) {
         match self.keys.binary_search(&key) {
             Ok(index) => {
                 self.values.slice_mut(s![index, .., ..]).assign(value);
@@ -48,7 +48,7 @@ impl IntKeyedArrayMap {
 pub fn calculate_and_save_all_score_state_reward(
     all_dice_states: &[Array1<u8>],
     all_keep_actions: &[Array1<bool>],
-    transition_function: &Array3<f64>,
+    transition_function: &Array3<f32>,
     hdf5_file: hdf5::File,
 ) -> Result<(), Error> {
     // Calculate the reward of all ScoreStates, and return it as a ndarray
@@ -79,26 +79,33 @@ pub fn calculate_and_save_all_score_state_reward(
             (NUM_ROLLS, num_dice_states),
         )));
         let mut next_exploration_set = HashSet::new();
-        next_exploration_set.par_extend(exploration_states.par_chunks(256).flat_map(
+        next_exploration_set.par_extend(exploration_states.par_chunks(50000).flat_map(
             |score_states| {
-                score_states
+                let result = score_states
                     .into_iter()
-                    .flat_map(|score_state| {
-                        let reward = calculate_score_state_reward(
+                    .map(|score_state| {
+                        (
                             *score_state,
-                            &previous_layer_reward,
-                            all_dice_states,
-                            all_keep_actions,
-                            transition_function,
-                        );
-                        if let Ok(mut current_layer_reward) = current_layer_reward.lock() {
-                            current_layer_reward.set((*score_state).into(), &reward);
-                        } else {
-                            panic!("current_layer_reward lock failed");
-                        }
-                        score_state.get_parent_states()
+                            calculate_score_state_reward(
+                                *score_state,
+                                &previous_layer_reward,
+                                all_dice_states,
+                                all_keep_actions,
+                                transition_function,
+                            ),
+                        )
                     })
-                    .collect::<HashSet<ScoreState>>()
+                    .collect::<Vec<(ScoreState, Array2<f32>)>>();
+                let mut parent_states = HashSet::new();
+                if let Ok(mut current_layer_reward) = current_layer_reward.lock() {
+                    for (score_state, reward) in result.iter() {
+                        current_layer_reward.set((*score_state).into(), &reward);
+                        parent_states.extend(score_state.get_parent_states());
+                    }
+                } else {
+                    panic!("current_layer_reward lock failed");
+                }
+                parent_states
             },
         ));
 
@@ -115,7 +122,7 @@ pub fn calculate_and_save_all_score_state_reward(
             .create("keys")?;
         current_layer_keys_dataset.write(&current_layer_reward.keys)?;
         let current_layer_values_dataset = current_layer_group
-            .new_dataset::<f64>()
+            .new_dataset::<f32>()
             .shape(current_layer_reward.values.shape())
             .create("values")?;
         current_layer_values_dataset.write(&current_layer_reward.values)?;
@@ -132,8 +139,8 @@ fn calculate_score_state_reward(
     previous_layer_reward: &IntKeyedArrayMap,
     all_dice_states: &[Array1<u8>],
     all_keep_actions: &[Array1<bool>],
-    transition_function: &Array3<f64>,
-) -> Array2<f64> {
+    transition_function: &Array3<f32>,
+) -> Array2<f32> {
     // Calculate the reward of a ScoreState, and return it as a ndarray
     // of shape (NUM_ROLLS, num_dice_states).
     let num_dice_states: usize = all_dice_states.len();
@@ -147,7 +154,7 @@ fn calculate_score_state_reward(
         .expect("all_keep_actions should contain keep_none_action");
 
     // The probablity of rolling any state by rerolling all dices
-    let first_roll_probability: ArrayView1<f64> =
+    let first_roll_probability: ArrayView1<f32> =
         transition_function.slice(s![0, keep_none_action_index, ..]);
     // 0 reroll, the reward is the
     // Reward(ScoreState, DiceState, ScoreAction)
@@ -158,7 +165,7 @@ fn calculate_score_state_reward(
     // Reward(ScoreState, DiceState, Reroll=0)
     let score_actions = score_state.possible_score_actions();
     for (dice_state_index, dice_state) in all_dice_states.iter().enumerate() {
-        let mut max_reward: f64 = 0.0;
+        let mut max_reward: f32 = 0.0;
         for score_action in score_actions.iter() {
             let action_reward = score_state.reward(*score_action, dice_state);
             let child_score_state = score_state
@@ -168,8 +175,8 @@ fn calculate_score_state_reward(
             let all_child_rewards = previous_layer_reward.get(child_score_state_index).expect(
                 "previous_layer_reward should contain all ScoreStates reachable from ScoreState",
             );
-            let child_reward: f64 = first_roll_probability.dot(&all_child_rewards.slice(s![2, ..]));
-            max_reward = max_reward.max(action_reward as f64 + child_reward);
+            let child_reward: f32 = first_roll_probability.dot(&all_child_rewards.slice(s![2, ..]));
+            max_reward = max_reward.max(action_reward as f32 + child_reward);
         }
         score_state_reward[[0, dice_state_index]] = max_reward;
     }
@@ -184,9 +191,9 @@ fn calculate_score_state_reward(
     // Reward(ScoreState, DiceState, Reroll)
     for reroll in 1..NUM_ROLLS {
         for dice_state_index in 0..num_dice_states {
-            let mut max_reward: f64 = 0.0;
+            let mut max_reward: f32 = 0.0;
             for keep_action_index in 0..num_keep_actions {
-                let keep_probability: ArrayView1<f64> =
+                let keep_probability: ArrayView1<f32> =
                     transition_function.slice(s![dice_state_index, keep_action_index, ..]);
                 let keep_reward =
                     keep_probability.dot(&score_state_reward.slice(s![reroll - 1, ..]));

@@ -101,7 +101,7 @@ impl ScoreState {
     pub fn num_all_states() -> u32 {
         // We have 26 bits to represent the score state.
         // the last two bits are for yahtzee, where 3 is not taken
-        return 1 << 27 - 2;
+        return 0b11111111111111111111111110;
     }
     pub fn apply_action(&self, score_action: ScoreAction, dice_state: &Array1<u8>) -> Option<Self> {
         let mut new_state = self.state;

@@ -13,7 +13,7 @@ fn main() -> Result<(), errors::Error> {
             let all_keep_actions = dice_states::get_all_keep_actions();
 
             let transition_function_dataset = file.dataset("transition_function")?;
-            let transition_function: Array3<f64> = transition_function_dataset.read()?;
+            let transition_function: Array3<f32> = transition_function_dataset.read()?;
 
             reward_evaluation::calculate_and_save_all_score_state_reward(
                 &all_dice_states,
@@ -27,7 +27,13 @@ fn main() -> Result<(), errors::Error> {
             // file.
 
             let all_dice_states = dice_states::get_all_dice_states();
+            println!("Number of dice states: {}", all_dice_states.len());
             let all_keep_actions = dice_states::get_all_keep_actions();
+            println!("Number of keep actions: {}", all_keep_actions.len());
+            println!(
+                "Number of score states: {}",
+                score_states::ScoreState::num_all_states()
+            );
 
             let transition_function =
                 dice_states::get_transition_function(&all_dice_states, &all_keep_actions);
@@ -36,7 +42,7 @@ fn main() -> Result<(), errors::Error> {
 
             // Save the transition function to a dataset.
             let transition_function_dataset = file
-                .new_dataset::<f64>()
+                .new_dataset::<f32>()
                 .shape(transition_function.shape())
                 .create("transition_function")?;
             transition_function_dataset.write(&transition_function)?;

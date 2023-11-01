@@ -6,13 +6,13 @@ pub const NUM_DICES: usize = 5;
 pub fn get_transition_function(
     all_dice_states: &[Array1<u8>],
     all_keep_actions: &[Array1<bool>],
-) -> Array3<f64> {
+) -> Array3<f32> {
     // Generate the transition function when rolling NUM_DICES dice and keeping a subset of them.
 
     let num_dice_states = all_dice_states.len();
     let num_keep_actions = all_keep_actions.len();
 
-    let mut transition_function: Array3<f64> =
+    let mut transition_function: Array3<f32> =
         Array3::zeros((num_dice_states, num_keep_actions, num_dice_states));
 
     transition_function
@@ -84,7 +84,7 @@ fn transition_probability(
     dice_state: &Array1<u8>,
     keep_action: &Array1<bool>,
     next_dice_state: &Array1<u8>,
-) -> f64 {
+) -> f32 {
     // Given a state, action, and next state, return the probability of transitioning from the
     // given state to the given next state given the given action.
 
@@ -140,7 +140,7 @@ fn action_to_kept_array(dice_state: &Array1<u8>, keep_action: &Array1<bool>) -> 
     kept
 }
 
-fn probability_of_goal_roll(goal_roll: &Array1<u8>) -> f64 {
+fn probability_of_goal_roll(goal_roll: &Array1<u8>) -> f32 {
     // Possibility of rolling sum(goal_roll) dice and
     // getting the desired positive goal_roll values.
 
@@ -155,7 +155,7 @@ fn probability_of_goal_roll(goal_roll: &Array1<u8>) -> f64 {
     // the positive_goal_rolls values is the multinomial coefficient
     let total_accepted_rolls = multinomial_coefficient(goal_roll);
 
-    total_accepted_rolls as f64 / total_num_rolls as f64
+    total_accepted_rolls as f32 / total_num_rolls as f32
 }
 
 fn multinomial_coefficient(all_k: &Array1<u8>) -> u64 {
