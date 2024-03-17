@@ -92,8 +92,8 @@ fn transition_probability(
     let kept = action_to_kept_array(dice_state, keep_action);
 
     // If any kept dice is greater than the corresponding next dice, then the transition
-    // is impossible (you can't go from (2, 3, 1, 0, 0, 0) to (1, 3, 1, 0, 0, 0) by keeping
-    // the 2 of the first dice
+    // is impossible (you can't go from (2, 3, 1, 0, 0, 0) to (1, 3, 2, 0, 0, 0) by keeping
+    // 2 of the first dice
     if kept
         .iter()
         .zip(next_dice_state.iter())

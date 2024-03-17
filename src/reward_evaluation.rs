@@ -4,7 +4,7 @@ use ndarray::prelude::*;
 use rayon::prelude::*;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
-const NUM_ROLLS: usize = 3;
+pub const NUM_ROLLS: usize = 3;
 #[derive(Debug, Clone)]
 pub struct IntKeyedArrayMap {
     pub keys: Vec<u32>,
